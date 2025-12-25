@@ -5,7 +5,7 @@ import io
 import plotly.express as px
 
 # --- 1. UI 設定 (黑魂科技風) ---
-st.set_page_config(page_title="教學管理終端 v2.0", layout="wide")
+st.set_page_config(page_title="教學管理終端 v2.1", layout="wide")
 
 st.markdown("""
     <style>
@@ -19,9 +19,9 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. 資料連結設定 ---
-SHEET_ID = "1JjnIVHXruwhHSBvZGJE_aaLMK1da8uhKu_0fbRhnyDI" # 請確認您的 Sheet ID 是否正確
-GID_DS = "0"          # DS 分頁的 gid
-GID_STATS = "1534015694"  # 請根據您的 Statistics 分頁網址 gid 修改
+SHEET_ID = "1JjnIVHXruwhHSBvZGJE_aaLMK1da8uhKu_0fbRhnyDI" 
+GID_DS = "0"          
+GID_STATS = "1534015694"  
 
 @st.cache_data(ttl=5)
 def load_data(gid):
@@ -44,9 +44,8 @@ st.markdown(f'<p class="hero-text">🧬 ACADEMIC TERMINAL - {page.split(" ")[1]}
 if page == "📄 DS (出勤與報告)":
     df_ds = load_data(GID_DS)
     if not df_ds.empty:
-        # 指標計算
         total_stu = len(df_ds)
-        avg_attend = df_ds['到課次數'].astype(float).mean()
+        avg_attend = pd.to_numeric(df_ds['到課次數'], errors='coerce').mean()
         
         m1, m2, m3 = st.columns(3)
         with m1: st.metric("班級總人數", f"{total_stu} 人")
@@ -54,43 +53,61 @@ if page == "📄 DS (出勤與報告)":
         with m3: st.metric("系統狀態", "DS LINKED", delta="SECURE")
         
         st.divider()
-        
         col_chart, col_table = st.columns([1, 2.5])
         with col_chart:
             st.markdown("### 🚨 出勤預警")
-            # 找出缺席 3 次以上的學員
-            warnings = df_ds[df_ds['缺席次數'].astype(float) >= 3]
+            warnings = df_ds[pd.to_numeric(df_ds['缺席次數'], errors='coerce') >= 3]
             if not warnings.empty:
                 for _, row in warnings.iterrows():
                     st.error(f"{row['姓名']} (缺席 {row['缺席次數']} 次)")
             else:
                 st.success("目前無出勤異常")
-                
         with col_table:
             st.dataframe(df_ds[['班級', '學號', '姓名', '到課次數', '期末報告繳交狀態', '總分']], use_container_width=True, hide_index=True)
 
 elif page == "📈 Statistics (考試統計)":
     df_stats = load_data(GID_STATS)
     if not df_stats.empty:
-        # 轉換數值欄位並填補空值
         for col in ['期中考分數', '期末考分數', '總分']:
             if col in df_stats.columns:
                 df_stats[col] = pd.to_numeric(df_stats[col], errors='coerce').fillna(0)
             
+        # 敘述統計計算
+        stats_summary = df_stats['總分'].describe().to_frame().T
+        std_dev = df_stats['總分'].std() # 標準差
+        median_val = df_stats['總分'].median() # 中位數
+
         m1, m2, m3 = st.columns(3)
-        with m1: st.metric("平均期中分數", f"{df_stats['期中考分數'].mean():.1f}")
-        with m2: st.metric("平均期末分數", f"{df_stats['期末考分數'].mean():.1f}")
-        with m3: st.metric("全班最高分", f"{df_stats['總分'].max():.1f}")
+        with m1: st.metric("平均總分", f"{df_stats['總分'].mean():.2f}")
+        with m2: st.metric("成績標準差", f"{std_dev:.2f}", help="標準差越大表示成績差距越大")
+        with m3: st.metric("成績中位數", f"{median_val:.1f}")
         
         st.divider()
         
-        # 繪製考試分數分佈圖
-        fig = px.histogram(df_stats, x="總分", nbins=10, title="學期總分分佈", color_discrete_sequence=['#33FF57'])
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", title_x=0.5)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        col_viz, col_desc = st.columns([1.5, 1])
+        with col_viz:
+            fig = px.histogram(df_stats, x="總分", nbins=10, title="學期總分分佈", color_discrete_sequence=['#33FF57'])
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", title_x=0.5)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         
+        with col_desc:
+            st.markdown("### 📊 敘述統計總表")
+            # 整理顯示用的敘述統計表
+            desc_df = pd.DataFrame({
+                "統計項目": ["平均數", "中位數", "標準差", "最小值", "最大值", "全距"],
+                "數值": [
+                    f"{df_stats['總分'].mean():.2f}",
+                    f"{median_val:.2f}",
+                    f"{std_dev:.2f}",
+                    f"{df_stats['總分'].min():.2f}",
+                    f"{df_stats['總分'].max():.2f}",
+                    f"{df_stats['總分'].max() - df_stats['總分'].min():.2f}"
+                ]
+            })
+            st.table(desc_df)
+
+        st.markdown("### 📋 學生詳細分數清單")
         st.dataframe(df_stats[['學號', '姓名', '期中考分數', '期末考分數', '考試分數統計', '總分']], use_container_width=True, hide_index=True)
 
-# 底部工具
 st.sidebar.divider()
 st.sidebar.link_button("📂 開啟 Google Sheets 登錄", f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit")
