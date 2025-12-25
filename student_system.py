@@ -19,10 +19,9 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. 資料連結設定 ---
-SHEET_ID = "您的試算表ID"
-# 請根據您的 Google Sheets 實際 gid 填寫
+SHEET_ID = "1JjnIVHXruwhHSBvZGJE_aaLMK1da8uhKu_0fbRhnyDI" # 請確認您的 Sheet ID 是否正確
 GID_DS = "0"          # DS 分頁的 gid
-GID_STATS = "123456"  # Statistics 分頁的 gid (請在網址列確認)
+GID_STATS = "1534015694"  # 請根據您的 Statistics 分頁網址 gid 修改
 
 @st.cache_data(ttl=5)
 def load_data(gid):
@@ -47,7 +46,7 @@ if page == "📄 DS (出勤與報告)":
     if not df_ds.empty:
         # 指標計算
         total_stu = len(df_ds)
-        avg_attend = df_ds['到課次數'].mean()
+        avg_attend = df_ds['到課次數'].astype(float).mean()
         
         m1, m2, m3 = st.columns(3)
         with m1: st.metric("班級總人數", f"{total_stu} 人")
@@ -60,7 +59,7 @@ if page == "📄 DS (出勤與報告)":
         with col_chart:
             st.markdown("### 🚨 出勤預警")
             # 找出缺席 3 次以上的學員
-            warnings = df_ds[df_ds['缺席次數'] >= 3]
+            warnings = df_ds[df_ds['缺席次數'].astype(float) >= 3]
             if not warnings.empty:
                 for _, row in warnings.iterrows():
                     st.error(f"{row['姓名']} (缺席 {row['缺席次數']} 次)")
@@ -73,9 +72,10 @@ if page == "📄 DS (出勤與報告)":
 elif page == "📈 Statistics (考試統計)":
     df_stats = load_data(GID_STATS)
     if not df_stats.empty:
-        # 轉換數值欄位
+        # 轉換數值欄位並填補空值
         for col in ['期中考分數', '期末考分數', '總分']:
-            df_stats[col] = pd.to_numeric(df_stats[col], errors='coerce').fillna(0)
+            if col in df_stats.columns:
+                df_stats[col] = pd.to_numeric(df_stats[col], errors='coerce').fillna(0)
             
         m1, m2, m3 = st.columns(3)
         with m1: st.metric("平均期中分數", f"{df_stats['期中考分數'].mean():.1f}")
@@ -86,11 +86,11 @@ elif page == "📈 Statistics (考試統計)":
         
         # 繪製考試分數分佈圖
         fig = px.histogram(df_stats, x="總分", nbins=10, title="學期總分分佈", color_discrete_sequence=['#33FF57'])
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", title_x=0.5)
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         
         st.dataframe(df_stats[['學號', '姓名', '期中考分數', '期末考分數', '考試分數統計', '總分']], use_container_width=True, hide_index=True)
 
-# 底部快捷工具
+# 底部工具
 st.sidebar.divider()
 st.sidebar.link_button("📂 開啟 Google Sheets 登錄", f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit")
