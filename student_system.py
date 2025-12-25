@@ -21,7 +21,7 @@ st.markdown("""
 # --- 2. 資料連結設定 ---
 SHEET_ID = "1JjnIVHXruwhHSBvZGJE_aaLMK1da8uhKu_0fbRhnyDI" 
 GID_DS = "0"          
-GID_STATS = "1534015694"  
+GID_STATS = "2044389951"  
 
 @st.cache_data(ttl=5)
 def load_data(gid):
